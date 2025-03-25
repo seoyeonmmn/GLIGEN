@@ -424,11 +424,8 @@ class UNetModel(nn.Module):
         else: 
             # Guidance null case
             grounding_input = self.grounding_tokenizer_input.get_null_input()
-
         if self.training and random.random() < 0.1 and self.grounding_tokenizer_input.set: # random drop for guidance  
             grounding_input = self.grounding_tokenizer_input.get_null_input()
-
-
         # Grounding tokens: B*N*C
         objs = self.position_net( **grounding_input )  
         

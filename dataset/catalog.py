@@ -135,6 +135,17 @@ class DatasetCatalog:
         }
 
 
+        # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - # 
+
+        self.MVTtec = {   
+            "target": "dataset.tsv_defect.DefectDataset",
+            "train_params":dict(
+                # image_rootdir = "/data1/seoyeon/DefFiller/dataset2/Source_Images",
+                # sem_rootdir = "/data1/seoyeon/DefFiller/dataset2/Ground_Truth",
+                root_dir = "/data1/seoyeon/DefFiller/dataset2",
+                tsv_path = "/data1/seoyeon/DefFiller/dataset2/grounding.tsv"
+            ),
+        }
 
 
 
