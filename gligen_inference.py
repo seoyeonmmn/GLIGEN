@@ -296,8 +296,25 @@ def prepare_batch_normal(meta, batch=1):
     }
     return batch_to_device(out, device) 
 
+@torch.no_grad()
+def prepare_batch_dxr(meta, batch=1):
+    pil_to_tensor = transforms.PILToTensor()
 
+    caption = meta["prompt"]
+    mask = Image.open(meta['mask']).convert("L")
+    mask = TF.center_crop(mask, min(mask.size))
+    mask = mask.resize((256, 256), Image.NEAREST)
+    mask = torch.tensor(np.array(mask), dtype=torch.long)
 
+    defect_label = meta["defect_label"]
+
+    out = {
+        "prompt": [caption],  # 하나짜리 리스트로 만들기
+        "mask": mask.unsqueeze(0),  # 배치 차원 추가
+        "defect_label": [defect_label],  # 하나짜리 리스트로 만들기
+    }
+
+    return batch_to_device(out, device)
 
 
 def colorEncode(labelmap, colors):
@@ -372,6 +389,9 @@ def run(meta, config, starting_noise=None):
         batch = prepare_batch_normal(meta, config.batch_size)
     elif "sem" in meta["ckpt"]:
         batch = prepare_batch_sem(meta, config.batch_size)
+    elif "defect" in meta["ckpt"]:
+        print(config.batch_size)
+        batch = prepare_batch_dxr(meta, config.batch_size)
     else:
         batch = prepare_batch(meta, config.batch_size)
     context = text_encoder.encode(  [meta["prompt"]]*config.batch_size  )
@@ -452,10 +472,10 @@ if __name__ == "__main__":
     
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--folder", type=str,  default="generation_samples", help="root folder for output")
+    parser.add_argument("--folder", type=str,  default="/home/seoyeon/fake_defect_generator/GLIGEN/infer_img", help="root folder for output")
 
 
-    parser.add_argument("--batch_size", type=int, default=5, help="")
+    parser.add_argument("--batch_size", type=int, default=1, help="")
     parser.add_argument("--no_plms", action='store_true', help="use DDIM instead. WARNING: I did not test the code yet")
     parser.add_argument("--guidance_scale", type=float,  default=7.5, help="")
     parser.add_argument("--negative_prompt", type=str,  default='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality', help="")
@@ -468,171 +488,12 @@ if __name__ == "__main__":
 
         # - - - - - - - - GLIGEN on text grounding for generation - - - - - - - - # 
         dict(
-            ckpt = "../gligen_checkpoints/checkpoint_generation_text.pth",
-            prompt = "a teddy bear sitting next to a bird",
-            phrases = ['a teddy bear', 'a bird'],
-            locations = [ [0.0,0.09,0.33,0.76], [0.55,0.11,1.0,0.8] ],
-            alpha_type = [0.3, 0.0, 0.7],
-            save_folder_name="generation_box_text"
+            ckpt = "/data1/seoyeon/gligen/test/tag01/defect_checkpoint_latest.pth",
+            prompt = "a photo of leather with oil defect",
+            mask = "/data1/seoyeon/DefFiller/dataset2/Ground_Truth/tile_oil_011_mask.png",
+            defect_label = "oil",
+            save_folder_name="defect_generation"
         ), 
-
-
-        # - - - - - - - - GLIGEN on text grounding for inpainting - - - - - - - - # 
-        dict(
-            ckpt = "../gligen_checkpoints/checkpoint_inpainting_text.pth",
-            input_image = "inference_images/dalle2_museum.jpg",
-            prompt = "a corgi and a cake",
-            phrases =   ['corgi', 'cake'],
-            locations = [ [0.25, 0.28, 0.42, 0.52], [0.14, 0.58, 0.58, 0.92], ], # mask will be derived from box 
-            save_folder_name="inpainting_box_text"
-        ),
-
-
-        # - - - - - - - - GLIGEN on image grounding for generation - - - - - - - - # 
-        dict(
-            ckpt = "../gligen_checkpoints/checkpoint_generation_text_image.pth",
-            prompt = "an alarm clock sitting on the beach",
-            images = ['inference_images/clock.png'],
-            phrases = ['alarm clock'],
-            locations = [ [0.0,0.09,0.53,0.76] ],
-            alpha_type = [1.0, 0.0, 0.0],
-            save_folder_name="generation_box_image"
-        ),
-
-
-
-        # - - - - - - - - GLIGEN on text and style grounding for generation - - - - - - - - # 
-        dict(
-            ckpt = "../gligen_checkpoints/checkpoint_generation_text_image.pth",
-            prompt = "a brick house in the woods, anime, oil painting",
-            phrases =   ['a brick house',            'placehoder'],
-            images =    ['inference_images/placeholder.png', 'inference_images/style_golden.jpg'],
-            locations = [ [0.4,0.2,1.0,0.8],         [0.0, 1.0, 0.0, 1.0] ],
-            alpha_type = [1, 0, 0],  
-            text_mask = [1,0],  # the second text feature will be masked 
-            image_mask =[0,1],  # the first image feature will be masked
-            save_folder_name="generation_box_text_style"
-        ), 
-
-
-        # - - - - - - - - GLIGEN on image grounding for inpainting - - - - - - - - # 
-        dict(
-            ckpt = "../gligen_checkpoints/checkpoint_inpainting_text_image.pth",
-            input_image = "inference_images/beach.jpg",
-            prompt = "a bigben on the beach",
-            images = [ 'inference_images/bigben.jpg'],
-            locations = [ [0.18, 0.08, 0.62, 0.75] ], # mask will be derived from box 
-            save_folder_name="inpainting_box_image"
-        ),
-
-
-
-        # - - - - - - - - GLIGEN on hed grounding for generation - - - - - - - - # 
-        dict(
-            ckpt ="../gligen_checkpoints/checkpoint_generation_hed.pth",
-            prompt = "a man is eating breakfast",  
-            hed_image = 'inference_images/hed_man_eat.png',
-            save_folder_name="hed",
-            alpha_type = [0.9, 0, 0.1], 
-        ),
-
-
-
-
-        # - - - - - - - - GLIGEN on canny grounding for generation - - - - - - - - # 
-        dict(
-            ckpt ="../gligen_checkpoints/checkpoint_generation_canny.pth",
-            prompt = "A Humanoid Robot Designed for Companionship", 
-            canny_image = 'inference_images/canny_robot.png',
-            alpha_type = [0.9, 0, 0.1], 
-            save_folder_name="canny"
-        ),
-
-
-
-
-        # - - - - - - - - GLIGEN on normal grounding for generation - - - - - - - - # 
-        dict(
-            ckpt ="../gligen_checkpoints/checkpoint_generation_normal.pth",
-            prompt = "a large tree with no leaves in front of a building", # 
-            normal = 'inference_images/normal_tree_building.jpg', # a normal map 
-            alpha_type = [0.7, 0, 0.3], 
-            save_folder_name="normal",
-        ),
-
-
-        # - - - - - - - - GLIGEN on depth grounding for generation - - - - - - - - # 
-        dict(
-            ckpt ="../gligen_checkpoints/checkpoint_generation_depth.pth",
-            prompt = "a Vibrant colorful Bird Sitting on Tree Branch", # 
-            depth = 'inference_images/depth_bird.png', 
-            alpha_type = [0.7, 0, 0.3], 
-            save_folder_name="depth"
-        ),
-
-
-        # - - - - - - - - GLIGEN on sem grounding for generation - - - - - - - - # 
-        dict(
-            ckpt ="../gligen_checkpoints/checkpoint_generation_sem.pth",
-            prompt = "a living room filled with lots of furniture and plants", # 
-            sem = 'inference_images/sem_ade_living_room.png', # ADE raw annotation  
-            alpha_type = [0.7, 0, 0.3], 
-            save_folder_name="sem"
-        ),
-
-
-
-        # - - - - - - - - GLIGEN on keypoint grounding for generation - - - - - - - - # 
-        dict(
-            ckpt = "../gligen_checkpoints/checkpoint_generation_keypoint.pth",
-            prompt = "A young man and a small boy are talking",
-            locations = [  
-                            [
-                                [0.7598, 0.2542],
-                                [0.7431, 0.2104],
-                                [0.8118, 0.2021],
-                                [0.0000, 0.0000],
-                                [0.9514, 0.1813],
-                                [0.7806, 0.2917],
-                                [0.0000, 0.0000],
-                                [0.6785, 0.5125],
-                                [0.0000, 0.0000],
-                                [0.5389, 0.6479],
-                                [0.6785, 0.6750],
-                                [0.7973, 0.7042],
-                                [0.0000, 0.0000],
-                                [0.6181, 0.7375],
-                                [0.9764, 0.8458],
-                                [0.0000, 0.0000],
-                                [0.0000, 0.0000]
-                            ], 
-
-                            [
-                                [0.2681, 0.4313],
-                                [0.2514, 0.3979],
-                                [0.0000, 0.0000],
-                                [0.0785, 0.3854],
-                                [0.0000, 0.0000],
-                                [0.0910, 0.5583],
-                                [0.0000, 0.0000],
-                                [0.1243, 0.8479],
-                                [0.0000, 0.0000],
-                                [0.0000, 0.0000],
-                                [0.0000, 0.0000],
-                                [0.0000, 0.0000],
-                                [0.0000, 0.0000],
-                                [0.2410, 0.8146],
-                                [0.1202, 0.6146],
-                                [0.0000, 0.0000],
-                                [0.2743, 0.7188]
-                            ], 
-
-             ],  # from id=18150 val set in coco2017k
-            alpha_type = [0.3, 0.0, 0.7],
-            save_folder_name="keypoint"
-        ),
-
-
 
     ]
 
